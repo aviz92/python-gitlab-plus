@@ -119,6 +119,7 @@ class GitLabBranchService:
         except gitlab.exceptions.GitlabDeleteError:
             self.logger.warning(f"⚠️ Branch '{branch_name}' is not protected.")
 
+
 class GitLabTagService:
     def __init__(self, project: Project):
         self.logger = get_logger(self.__class__.__name__)
@@ -242,24 +243,24 @@ class GitLabFileService:
         file = self.project.files.get(file_path=file_path, ref=ref)
         return file.decode().decode('utf-8')
 
-    def update(self, file_path: str, branch: str, content: str, commit_message: str) -> None:
-        file = self.project.files.get(file_path=file_path, ref=branch)
-        file.content = content
-        file.save(branch=branch, commit_message=commit_message)
-
-    def create(self, file_path: str, branch: str, content: str, commit_message: str) -> None:
-        self.project.files.create(
-            {
-                'file_path': file_path,
-                'branch': branch,
-                'content': content,
-                'commit_message': commit_message
-            }
-        )
-
-    def delete(self, file_path: str, branch: str, commit_message: str) -> None:
-        file = self.project.files.get(file_path=file_path, ref=branch)
-        file.delete(branch=branch, commit_message=commit_message)
+    # def update(self, file_path: str, branch: str, content: str, commit_message: str) -> None:
+    #     file = self.project.files.get(file_path=file_path, ref=branch)
+    #     file.content = content
+    #     file.save(branch=branch, commit_message=commit_message)
+    #
+    # def create(self, file_path: str, branch: str, content: str, commit_message: str) -> None:
+    #     self.project.files.create(
+    #         {
+    #             'file_path': file_path,
+    #             'branch': branch,
+    #             'content': content,
+    #             'commit_message': commit_message
+    #         }
+    #     )
+    #
+    # def delete(self, file_path: str, branch: str, commit_message: str) -> None:
+    #     file = self.project.files.get(file_path=file_path, ref=branch)
+    #     file.delete(branch=branch, commit_message=commit_message)
 
 
 # ----------------------- #
