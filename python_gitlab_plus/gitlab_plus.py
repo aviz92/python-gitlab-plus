@@ -146,6 +146,9 @@ class GitLabMergeRequestService:
         self.gitlab = gitlab_client
         self.project = project
 
+    def get_info(self, mr_number: int) -> ProjectMergeRequest:
+        return self.project.mergerequests.get(mr_number)
+
     def create(self, title: str, from_branch: str, target: str) -> ProjectMergeRequest:
         mr = self.project.mergerequests.create({
             'source_branch': from_branch,
@@ -199,6 +202,13 @@ class GitLabMergeRequestService:
         mr.assignee_ids = [user.id]
         mr.save()
         self.logger.info(f"✅ MR !{mr_number} assigned to {assignee_username}.")
+
+    def add_reviewer(self, mr_number: int, reviewer_username: str) -> None:
+        user = self.gitlab.users.list(username=reviewer_username)[0]
+        mr = self.project.mergerequests.get(mr_number)
+        mr.reviewer_ids = [user.id]
+        mr.save()
+        self.logger.info(f"✅ Reviewer {reviewer_username} added to MR !{mr_number}.")
 
     def add_comment(self, mr_number: int, comment: str) -> None:
         mr = self.project.mergerequests.get(mr_number)
@@ -274,14 +284,24 @@ class GitLabClient:
         self.gitlab_access_token = access_token or os.environ.get("GITLAB_ACCESS_TOKEN")
 
         self.gitlab = gitlab.Gitlab(self.gitlab_url, private_token=self.gitlab_access_token)
-        self.gitlab.auth()
-        self.logger.info(f"✅ Connected to GitLab at {self.gitlab_url}")
+        self.is_connected(raise_if_not_connected=True)
 
         project = self.gitlab.projects.get(project_id)
-
         self.project = GitLabProjectService(gitlab_client=self.gitlab, project=project)
         self.pipeline = GitLabPipelineService(project=project)
         self.branch = GitLabBranchService(project=project)
         self.tag = GitLabTagService(project=project)
         self.merge_request = GitLabMergeRequestService(gitlab_client=self.gitlab, project=project)
         self.file = GitLabFileService(gitlab_client=self.gitlab, project=project)
+
+    def is_connected(self, raise_if_not_connected: bool = False) -> bool:
+        try:
+            self.gitlab.auth()
+            self.logger.info(f"✅ Successfully connected to GitLab at {self.gitlab_url}")
+            return True
+        except Exception as e:
+            msg = f"❌ Failed to authenticate with GitLab: {e}"
+            if raise_if_not_connected:
+                raise ValueError(msg)
+            self.logger.exception(msg)
+            return False
