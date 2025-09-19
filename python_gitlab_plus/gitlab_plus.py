@@ -4,6 +4,8 @@ from enum import Enum
 from typing import Optional
 
 import gitlab
+from gitlab import const
+from gitlab.const import AccessLevel
 from gitlab.v4.objects import (
     Project,
     ProjectMember,
@@ -98,14 +100,24 @@ class GitLabBranchService:
     def list(self, search: Optional[str] = None) -> list[ProjectBranch]:
         return self.project.branches.list(search=search, all=True)
 
-    def protect(self, branch_name: str) -> None:
-        branch = self.project.branches.get(branch_name)
-        branch.protect()
+    def protect(
+        self,
+        branch_name: str,
+        push_access_level: AccessLevel = const.DEVELOPER_ACCESS,
+        merge_access_level: AccessLevel = const.MAINTAINER_ACCESS
+    ) -> None:
+        from gitlab import const
+        self.project.protectedbranches.create({
+            'name': branch_name,
+            'push_access_level': push_access_level,
+            'merge_access_level': merge_access_level
+        })
 
     def unprotect(self, branch_name: str) -> None:
-        branch = self.project.branches.get(branch_name)
-        branch.unprotect()
-
+        try:
+            self.project.protectedbranches.delete(branch_name)
+        except gitlab.exceptions.GitlabDeleteError:
+            self.logger.warning(f"⚠️ Branch '{branch_name}' is not protected.")
 
 class GitLabTagService:
     def __init__(self, project: Project):
