@@ -4,75 +4,146 @@ from enum import Enum
 from typing import Optional
 
 import gitlab
+from gitlab.v4.objects import (
+    Project,
+    ProjectMember,
+    ProjectPipeline,
+    ProjectBranch,
+    ProjectTag,
+    ProjectMergeRequest,
+    ProjectFile,
+)
 from custom_python_logger import get_logger
 
 
 class GitLabStatus(Enum):
-    OPEN = "Opened"
-    CLOSE = "Closed"
-    MERGE = "Merged"
-    LOCKE = "Locked"
+    OPEN = "opened"
+    CLOSE = "closed"
+    MERGE = "merged"
+    LOCK = "locked"
 
 
-class GitLabClient:
-    def __init__(self, gitlab_url: str, gitlab_access_token: Optional[str], project_id: str):
+class GitLabPipelineStatus(Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+    CANCELED = "canceled"
+    SKIPPED = "skipped"
+
+
+class GitLabProjectService:
+    def __init__(self, gitlab_client: gitlab.Gitlab, project: Project):
         self.logger = get_logger(self.__class__.__name__)
-        self.gitlab_url = gitlab_url
-        self.gitlab_access_token = gitlab_access_token or os.environ.get("GITLAB_ACCESS_TOKEN")
 
-        self.gitlab = gitlab.Gitlab(self.gitlab_url, private_token=self.gitlab_access_token)
-        self.is_connected(raise_if_not_connected=True)
+        self.gitlab = gitlab_client
+        self.project = project
 
-        self.project = self.gitlab.projects.get(project_id)
+    def get_info(self) -> Project:
+        return self.project
 
-    def is_connected(self, raise_if_not_connected: bool = False) -> bool:
-        try:
-            self.gitlab.auth()
-            self.logger.info(f"Successfully connected to GitLab at {self.gitlab_url}")
-            return True
-        except Exception as e:
-            msg = f"Failed to authenticate with GitLab: {e}"
-            if raise_if_not_connected:
-                raise ValueError(msg)
-            self.logger.exception(msg)
-            return False
+    def list_members(self) -> list[ProjectMember]:
+        return self.project.members.list(all=True)
 
-    def fetch_file_content(self, project_path: str, branch: str, file_path: str) -> str:
-        self.logger.info(f"Fetching file from project: {project_path}, branch: {branch}, path: {file_path}")
+    def add_member(self, username: str, access_level: int) -> None:
+        user = self.gitlab.users.list(username=username)[0]
+        self.project.members.create({'user_id': user.id, 'access_level': access_level})
 
-        project = self.gitlab.projects.get(project_path)
-        return project.files.get(file_path, ref=branch).decode()
+    def remove_member(self, username: str) -> None:
+        user = self.gitlab.users.list(username=username)[0]
+        self.project.members.delete(user.id)
 
-    def create_new_branch(self, branch_name: str, from_branch: str):
+
+class GitLabPipelineService:
+    def __init__(self, project: Project):
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.project = project
+
+    def trigger(self, branch_name: str, variables: Optional[dict] = None) -> ProjectPipeline:
+        return self.project.pipelines.create({'ref': branch_name, 'variables': variables or {}})
+
+    def status(self, pipeline_id: int) -> str:
+        return self.project.pipelines.get(pipeline_id).status
+
+    def wait_until_finished(self, pipeline_id: int, check_interval=10, timeout: Optional[int] = None) -> str:
+        final_statuses = [s.value for s in GitLabPipelineStatus]
+
+        start_time = time.time()
+        while True:
+            pipeline = self.project.pipelines.get(pipeline_id)
+
+            if pipeline.status in final_statuses:
+                return pipeline.status
+
+            if timeout and (time.time() - start_time) > timeout:
+                raise TimeoutError(f"Pipeline {pipeline_id} did not complete within {timeout} seconds.")
+
+            time.sleep(check_interval)
+
+
+class GitLabBranchService:
+    def __init__(self, project: Project):
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.project = project
+
+    def create(self, branch_name: str, from_branch: str) -> ProjectBranch:
         branch = self.project.branches.create({'branch': branch_name, 'ref': from_branch})
         self.logger.info(f"✅ Branch '{branch_name}' created from '{from_branch}'")
         return branch
 
-    def create_tag(self, tag_name: str, from_branch: str, message: Optional[str] = None):
-        tag = self.project.tags.create(
-            {
-                'tag_name': tag_name,
-                'ref': from_branch,
-                'message': message
-            }
-        )
+    def delete(self, branch_name: str) -> None:
+        self.project.branches.delete(branch_name)
+        self.logger.info(f"✅ Branch '{branch_name}' deleted")
+
+    def list(self, search: Optional[str] = None) -> list[ProjectBranch]:
+        return self.project.branches.list(search=search, all=True)
+
+    def protect(self, branch_name: str) -> None:
+        branch = self.project.branches.get(branch_name)
+        branch.protect()
+
+    def unprotect(self, branch_name: str) -> None:
+        branch = self.project.branches.get(branch_name)
+        branch.unprotect()
+
+
+class GitLabTagService:
+    def __init__(self, project: Project):
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.project = project
+
+    def create(self, tag_name: str, from_branch: str, message: Optional[str] = None) -> ProjectTag:
+        tag = self.project.tags.create({'tag_name': tag_name, 'ref': from_branch, 'message': message})
         self.logger.info(f"✅ Tag '{tag_name}' created from '{from_branch}'")
         return tag
 
-    def create_new_mr(self, title: str, from_branch: str, target: str):
-        mr = self.project.mergerequests.create(
-            {
-                'source_branch': from_branch,
-                'target_branch': target,
-                'title': title
-            }
-        )
+    def delete(self, tag_name: str) -> None:
+        self.project.tags.delete(tag_name)
+        self.logger.info(f"✅ Tag '{tag_name}' deleted")
+
+    def list(self, search: Optional[str] = None) -> list[ProjectTag]:
+        return self.project.tags.list(search=search, all=True)
+
+
+class GitLabMergeRequestService:
+    def __init__(self, gitlab_client: gitlab.Gitlab, project: Project):
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.gitlab = gitlab_client
+        self.project = project
+
+    def create(self, title: str, from_branch: str, target: str) -> ProjectMergeRequest:
+        mr = self.project.mergerequests.create({
+            'source_branch': from_branch,
+            'target_branch': target,
+            'title': title
+        })
         self.logger.info(f"✅ Merge Request '{title}' created: !{mr.iid}")
         return mr
 
-    def get_mr_status(self, mr_number: str | int) -> str:
-        mr = self.project.mergerequests.get(mr_number)
-        return mr.state
+    def status(self, mr_number: int) -> str:
+        return self.project.mergerequests.get(mr_number).state
 
     def has_merge_conflicts(self, mr_number: str | int) -> bool:
         mr = self.project.mergerequests.get(mr_number)
@@ -87,32 +158,46 @@ class GitLabClient:
                 return True
         return False
 
-    def is_mr_merged(self, mr_number: str | int) -> bool:
+    def merge(self, mr_number: int, merge_when_pipeline_succeeds: bool = True) -> None:
         mr = self.project.mergerequests.get(mr_number)
+        mr.merge(merge_when_pipeline_succeeds=merge_when_pipeline_succeeds)
+        self.logger.info(f"✅ MR !{mr_number} merged.")
 
-        if mr.state == GitLabStatus.MERGE:
-            self.logger.info(f"✅ MR !{mr_number} has been merged")
-            return True
-
-        self.logger.error(f"❌ MR !{mr_number} was close without merging.")
-        return False
-
-    def is_mr_open(self, mr_number: str | int) -> bool:
+    def approve(self, mr_number: int) -> None:
         mr = self.project.mergerequests.get(mr_number)
+        mr.approve()
+        self.logger.info(f"✅ MR !{mr_number} approved.")
 
-        if mr.state == GitLabStatus.OPEN:
-            self.logger.info(f"✅ MR !{mr_number} has been open.")
-            return True
+    def close(self, mr_number: int) -> None:
+        mr = self.project.mergerequests.get(mr_number)
+        mr.state_event = 'close'
+        mr.save()
+        self.logger.info(f"✅ MR !{mr_number} closed.")
 
-        self.logger.error(f"❌ MR !{mr_number} was closed.")
-        return False
+    def reopen(self, mr_number: int) -> None:
+        mr = self.project.mergerequests.get(mr_number)
+        mr.state_event = 'reopen'
+        mr.save()
+        self.logger.info(f"✅ MR !{mr_number} reopened.")
 
-    def wait_until_mr_finished(self, mr_number: str | int, check_interval=10, timeout: Optional[int] = None) -> None:
+    def assign(self, mr_number: int, assignee_username: str) -> None:
+        user = self.gitlab.users.list(username=assignee_username)[0]
+        mr = self.project.mergerequests.get(mr_number)
+        mr.assignee_ids = [user.id]
+        mr.save()
+        self.logger.info(f"✅ MR !{mr_number} assigned to {assignee_username}.")
+
+    def add_comment(self, mr_number: int, comment: str) -> None:
+        mr = self.project.mergerequests.get(mr_number)
+        mr.notes.create({'body': comment})
+        self.logger.info(f"✅ Comment added to MR !{mr_number}.")
+
+    def wait_until_finished(self, mr_number: str | int, check_interval=10, timeout: Optional[int] = None) -> None:
         self.logger.info(f"⏳ Waiting for MR !{mr_number} to be merged...")
         close_statuses = [
             GitLabStatus.CLOSE,
             GitLabStatus.MERGE,
-            GitLabStatus.LOCKE,
+            GitLabStatus.LOCK,
         ]
 
         start_time = time.time()
@@ -129,3 +214,61 @@ class GitLabClient:
             if mr.state in close_statuses:
                 break
             time.sleep(check_interval)
+
+
+class GitLabFileService:
+    def __init__(self, gitlab_client, project):
+        self.logger = get_logger(self.__class__.__name__)
+
+        self.project = project
+        self.gitlab = gitlab_client
+
+    def get(self, file_path: str, ref: str) -> ProjectFile:
+        return self.project.files.get(file_path=file_path, ref=ref)
+
+    def fetch_content(self, file_path: str, ref: str) -> str:
+        file = self.project.files.get(file_path=file_path, ref=ref)
+        return file.decode().decode('utf-8')
+
+    def update(self, file_path: str, branch: str, content: str, commit_message: str) -> None:
+        file = self.project.files.get(file_path=file_path, ref=branch)
+        file.content = content
+        file.save(branch=branch, commit_message=commit_message)
+
+    def create(self, file_path: str, branch: str, content: str, commit_message: str) -> None:
+        self.project.files.create(
+            {
+                'file_path': file_path,
+                'branch': branch,
+                'content': content,
+                'commit_message': commit_message
+            }
+        )
+
+    def delete(self, file_path: str, branch: str, commit_message: str) -> None:
+        file = self.project.files.get(file_path=file_path, ref=branch)
+        file.delete(branch=branch, commit_message=commit_message)
+
+
+# ----------------------- #
+# Facade / User Interface #
+# ----------------------- #
+
+class GitLabClient:
+    def __init__(self, gitlab_url: str, access_token: Optional[str], project_id: str):
+        self.logger = get_logger(self.__class__.__name__)
+        self.gitlab_url = gitlab_url
+        self.gitlab_access_token = access_token or os.environ.get("GITLAB_ACCESS_TOKEN")
+
+        self.gitlab = gitlab.Gitlab(self.gitlab_url, private_token=self.gitlab_access_token)
+        self.gitlab.auth()
+        self.logger.info(f"✅ Connected to GitLab at {self.gitlab_url}")
+
+        project = self.gitlab.projects.get(project_id)
+
+        self.project = GitLabProjectService(gitlab_client=self.gitlab, project=project)
+        self.pipeline = GitLabPipelineService(project=project)
+        self.branch = GitLabBranchService(project=project)
+        self.tag = GitLabTagService(project=project)
+        self.merge_request = GitLabMergeRequestService(gitlab_client=self.gitlab, project=project)
+        self.file = GitLabFileService(gitlab_client=self.gitlab, project=project)
