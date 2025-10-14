@@ -1,21 +1,20 @@
 import os
 import time
 from enum import Enum
-from typing import Optional
 
 import gitlab
+from custom_python_logger import get_logger
 from gitlab import const
 from gitlab.const import AccessLevel
 from gitlab.v4.objects import (
     Project,
-    ProjectMember,
-    ProjectPipeline,
     ProjectBranch,
-    ProjectTag,
-    ProjectMergeRequest,
     ProjectFile,
+    ProjectMember,
+    ProjectMergeRequest,
+    ProjectPipeline,
+    ProjectTag,
 )
-from custom_python_logger import get_logger
 
 
 class GitLabStatus(Enum):
@@ -33,7 +32,7 @@ class GitLabPipelineStatus(Enum):
 
 
 class GitLabProjectService:
-    def __init__(self, gitlab_client: gitlab.Gitlab, project: Project):
+    def __init__(self, gitlab_client: gitlab.Gitlab, project: Project) -> None:
         self.logger = get_logger(self.__class__.__name__)
 
         self.gitlab = gitlab_client
@@ -47,7 +46,7 @@ class GitLabProjectService:
 
     def add_member(self, username: str, access_level: int) -> None:
         user = self.gitlab.users.list(username=username)[0]
-        self.project.members.create({'user_id': user.id, 'access_level': access_level})
+        self.project.members.create({"user_id": user.id, "access_level": access_level})
 
     def remove_member(self, username: str) -> None:
         user = self.gitlab.users.list(username=username)[0]
@@ -55,41 +54,37 @@ class GitLabProjectService:
 
 
 class GitLabPipelineService:
-    def __init__(self, project: Project):
+    def __init__(self, project: Project) -> None:
         self.logger = get_logger(self.__class__.__name__)
 
         self.project = project
 
-    def trigger(self, branch_name: str, variables: Optional[dict] = None) -> ProjectPipeline:
-        return self.project.pipelines.create({'ref': branch_name, 'variables': variables or {}})
+    def trigger(self, branch_name: str, variables: dict | None = None) -> ProjectPipeline:
+        return self.project.pipelines.create({"ref": branch_name, "variables": variables or {}})
 
     def status(self, pipeline_id: int) -> str:
         return self.project.pipelines.get(pipeline_id).status
 
-    def wait_until_finished(self, pipeline_id: int, check_interval=10, timeout: Optional[int] = None) -> str:
+    def wait_until_finished(self, pipeline_id: int, check_interval: int = 10, timeout: int = 60 * 5) -> str:
         final_statuses = [s.value for s in GitLabPipelineStatus]
 
         start_time = time.time()
-        while True:
+        while (time.time() - start_time) >= timeout:  # pylint: disable=W0149
             pipeline = self.project.pipelines.get(pipeline_id)
-
             if pipeline.status in final_statuses:
                 return pipeline.status
-
-            if timeout and (time.time() - start_time) > timeout:
-                raise TimeoutError(f"Pipeline {pipeline_id} did not complete within {timeout} seconds.")
-
             time.sleep(check_interval)
+        raise TimeoutError(f"Pipeline {pipeline_id} did not complete within {timeout} seconds.")
 
 
 class GitLabBranchService:
-    def __init__(self, project: Project):
+    def __init__(self, project: Project) -> None:
         self.logger = get_logger(self.__class__.__name__)
 
         self.project = project
 
     def create(self, branch_name: str, from_branch: str) -> ProjectBranch:
-        branch = self.project.branches.create({'branch': branch_name, 'ref': from_branch})
+        branch = self.project.branches.create({"branch": branch_name, "ref": from_branch})
         self.logger.info(f"✅ Branch '{branch_name}' created from '{from_branch}'")
         return branch
 
@@ -97,21 +92,19 @@ class GitLabBranchService:
         self.project.branches.delete(branch_name)
         self.logger.info(f"✅ Branch '{branch_name}' deleted")
 
-    def list(self, search: Optional[str] = None) -> list[ProjectBranch]:
+    def list(self, search: str | None = None) -> list[ProjectBranch]:
         return self.project.branches.list(search=search, all=True)
 
     def protect(
         self,
         branch_name: str,
         push_access_level: AccessLevel = const.DEVELOPER_ACCESS,
-        merge_access_level: AccessLevel = const.MAINTAINER_ACCESS
+        merge_access_level: AccessLevel = const.MAINTAINER_ACCESS,
     ) -> None:
-        from gitlab import const
-        self.project.protectedbranches.create({
-            'name': branch_name,
-            'push_access_level': push_access_level,
-            'merge_access_level': merge_access_level
-        })
+
+        self.project.protectedbranches.create(
+            {"name": branch_name, "push_access_level": push_access_level, "merge_access_level": merge_access_level}
+        )
 
     def unprotect(self, branch_name: str) -> None:
         try:
@@ -121,13 +114,13 @@ class GitLabBranchService:
 
 
 class GitLabTagService:
-    def __init__(self, project: Project):
+    def __init__(self, project: Project) -> None:
         self.logger = get_logger(self.__class__.__name__)
 
         self.project = project
 
-    def create(self, tag_name: str, from_branch: str, message: Optional[str] = None) -> ProjectTag:
-        tag = self.project.tags.create({'tag_name': tag_name, 'ref': from_branch, 'message': message})
+    def create(self, tag_name: str, from_branch: str, message: str | None = None) -> ProjectTag:
+        tag = self.project.tags.create({"tag_name": tag_name, "ref": from_branch, "message": message})
         self.logger.info(f"✅ Tag '{tag_name}' created from '{from_branch}'")
         return tag
 
@@ -135,12 +128,12 @@ class GitLabTagService:
         self.project.tags.delete(tag_name)
         self.logger.info(f"✅ Tag '{tag_name}' deleted")
 
-    def list(self, search: Optional[str] = None) -> list[ProjectTag]:
+    def list(self, search: str | None = None) -> list[ProjectTag]:
         return self.project.tags.list(search=search, all=True)
 
 
 class GitLabMergeRequestService:
-    def __init__(self, gitlab_client: gitlab.Gitlab, project: Project):
+    def __init__(self, gitlab_client: gitlab.Gitlab, project: Project) -> None:
         self.logger = get_logger(self.__class__.__name__)
 
         self.gitlab = gitlab_client
@@ -150,11 +143,7 @@ class GitLabMergeRequestService:
         return self.project.mergerequests.get(mr_number)
 
     def create(self, title: str, from_branch: str, target: str) -> ProjectMergeRequest:
-        mr = self.project.mergerequests.create({
-            'source_branch': from_branch,
-            'target_branch': target,
-            'title': title
-        })
+        mr = self.project.mergerequests.create({"source_branch": from_branch, "target_branch": target, "title": title})
         self.logger.info(f"✅ Merge Request '{title}' created: !{mr.iid}")
         return mr
 
@@ -163,15 +152,14 @@ class GitLabMergeRequestService:
 
     def has_merge_conflicts(self, mr_number: str | int) -> bool:
         mr = self.project.mergerequests.get(mr_number)
-        if hasattr(mr, 'has_conflicts') and mr.has_conflicts:
+        if hasattr(mr, "has_conflicts") and mr.has_conflicts:
             self.logger.error(f"🔍 MR !{mr_number} has_conflicts = {mr.has_conflicts}")
             return True
-        else:
-            # Fallback: check detailed_merge_status if has_conflicts not available
-            conflict_statuses = ['conflicts', 'cannot_be_merged']
-            if hasattr(mr, 'detailed_merge_status') and mr.detailed_merge_status in conflict_statuses:
-                self.logger.error(f"🔍 MR !{mr_number} detailed_merge_status = {mr.detailed_merge_status}")
-                return True
+        # Fallback: check detailed_merge_status if has_conflicts not available
+        conflict_statuses = ["conflicts", "cannot_be_merged"]
+        if hasattr(mr, "detailed_merge_status") and mr.detailed_merge_status in conflict_statuses:
+            self.logger.error(f"🔍 MR !{mr_number} detailed_merge_status = {mr.detailed_merge_status}")
+            return True
         return False
 
     def merge(self, mr_number: int, merge_when_pipeline_succeeds: bool = True) -> None:
@@ -186,13 +174,13 @@ class GitLabMergeRequestService:
 
     def close(self, mr_number: int) -> None:
         mr = self.project.mergerequests.get(mr_number)
-        mr.state_event = 'close'
+        mr.state_event = "close"
         mr.save()
         self.logger.info(f"✅ MR !{mr_number} closed.")
 
     def reopen(self, mr_number: int) -> None:
         mr = self.project.mergerequests.get(mr_number)
-        mr.state_event = 'reopen'
+        mr.state_event = "reopen"
         mr.save()
         self.logger.info(f"✅ MR !{mr_number} reopened.")
 
@@ -212,10 +200,10 @@ class GitLabMergeRequestService:
 
     def add_comment(self, mr_number: int, comment: str) -> None:
         mr = self.project.mergerequests.get(mr_number)
-        mr.notes.create({'body': comment})
+        mr.notes.create({"body": comment})
         self.logger.info(f"✅ Comment added to MR !{mr_number}.")
 
-    def wait_until_finished(self, mr_number: str | int, check_interval=10, timeout: Optional[int] = None) -> None:
+    def wait_until_finished(self, mr_number: str | int, check_interval: int = 10, timeout: int = 60 * 5) -> None:
         self.logger.info(f"⏳ Waiting for MR !{mr_number} to be merged...")
         close_statuses = [
             GitLabStatus.CLOSE,
@@ -224,23 +212,19 @@ class GitLabMergeRequestService:
         ]
 
         start_time = time.time()
-        while True:
-            if timeout and (time.time() - start_time) > timeout:
-                raise TimeoutError(f"⏰ Timeout reached while waiting for MR !{mr_number} to be merged.")
-
+        while (time.time() - start_time) >= timeout:  # pylint: disable=W0149
             mr = self.project.mergerequests.get(mr_number)
             self.logger.debug(f"MR ({mr.iid}) status is: {mr.state}")
-
             if self.has_merge_conflicts(mr_number):
                 raise Exception(f"🔍 MR !{mr_number} has conflicts.")
-
             if mr.state in close_statuses:
                 break
             time.sleep(check_interval)
+        raise TimeoutError(f"⏰ Timeout reached while waiting for MR !{mr_number} to be merged.")
 
 
 class GitLabFileService:
-    def __init__(self, gitlab_client, project):
+    def __init__(self, gitlab_client: gitlab.Gitlab, project: Project) -> None:
         self.logger = get_logger(self.__class__.__name__)
 
         self.project = project
@@ -251,7 +235,7 @@ class GitLabFileService:
 
     def fetch_content(self, file_path: str, ref: str) -> str:
         file = self.project.files.get(file_path=file_path, ref=ref)
-        return file.decode().decode('utf-8')
+        return file.decode().decode("utf-8")
 
     # def update(self, file_path: str, branch: str, content: str, commit_message: str) -> None:
     #     file = self.project.files.get(file_path=file_path, ref=branch)
@@ -277,8 +261,9 @@ class GitLabFileService:
 # Facade / User Interface #
 # ----------------------- #
 
+
 class GitLabClient:
-    def __init__(self, gitlab_url: str, access_token: Optional[str], project_id: str):
+    def __init__(self, gitlab_url: str, access_token: str | None, project_id: str) -> None:
         self.logger = get_logger(self.__class__.__name__)
         self.gitlab_url = gitlab_url
         self.gitlab_access_token = access_token or os.environ.get("GITLAB_ACCESS_TOKEN")
@@ -302,6 +287,6 @@ class GitLabClient:
         except Exception as e:
             msg = f"❌ Failed to authenticate with GitLab: {e}"
             if raise_if_not_connected:
-                raise ValueError(msg)
+                raise ValueError(msg) from e
             self.logger.exception(msg)
             return False

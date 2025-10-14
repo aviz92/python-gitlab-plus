@@ -138,8 +138,8 @@ print(f"Pipeline status: {status}")
 
 # Wait for pipeline completion
 final_status = gitlab_client.pipeline.wait_until_finished(
-    pipeline.id, 
-    check_interval=30, 
+    pipeline.id,
+    check_interval=30,
     timeout=3600
 )
 print(f"Pipeline completed with status: {final_status}")
