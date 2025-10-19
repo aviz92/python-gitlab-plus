@@ -263,7 +263,7 @@ class GitLabFileService:
 
 
 class GitLabClient:
-    def __init__(self, gitlab_url: str, access_token: str | None, project_id: str) -> None:
+    def __init__(self, gitlab_url: str, project_id: str, access_token: str | None = None) -> None:
         self.logger = get_logger(self.__class__.__name__)
         self.gitlab_url = gitlab_url
         self.gitlab_access_token = access_token or os.environ.get("GITLAB_ACCESS_TOKEN")
