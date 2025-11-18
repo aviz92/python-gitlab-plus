@@ -19,9 +19,9 @@ from gitlab.v4.objects import (
 
 class GitLabStatus(Enum):
     OPEN = "opened"
-    CLOSE = "closed"
-    MERGE = "merged"
-    LOCK = "locked"
+    CLOSED = "closed"
+    MERGED = "merged"
+    LOCKED = "locked"
 
 
 class GitLabPipelineStatus(Enum):
@@ -139,6 +139,9 @@ class GitLabMergeRequestService:
         self.gitlab = gitlab_client
         self.project = project
 
+    def list(self, per_page: int = 20, iterator: bool = False, get_all: bool = False) -> list[ProjectMergeRequest]:
+        return self.project.mergerequests.list(per_page=per_page, iterator=iterator, get_all=get_all)
+
     def get_info(self, mr_number: int) -> ProjectMergeRequest:
         return self.project.mergerequests.get(mr_number)
 
@@ -206,9 +209,9 @@ class GitLabMergeRequestService:
     def wait_until_finished(self, mr_number: str | int, check_interval: int = 10, timeout: int = 60 * 5) -> None:
         self.logger.info(f"⏳ Waiting for MR !{mr_number} to be merged...")
         close_statuses = [
-            GitLabStatus.CLOSE,
-            GitLabStatus.MERGE,
-            GitLabStatus.LOCK,
+            GitLabStatus.CLOSED,
+            GitLabStatus.MERGED,
+            GitLabStatus.LOCKED,
         ]
 
         start_time = time.time()
