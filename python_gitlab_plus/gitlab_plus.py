@@ -1,6 +1,6 @@
 import os
 import time
-from enum import Enum
+from enum import StrEnum
 
 import gitlab
 from custom_python_logger import get_logger
@@ -17,14 +17,14 @@ from gitlab.v4.objects import (
 )
 
 
-class GitLabStatus(Enum):
+class GitLabStatus(StrEnum):
     OPEN = "opened"
     CLOSED = "closed"
     MERGED = "merged"
     LOCKED = "locked"
 
 
-class GitLabPipelineStatus(Enum):
+class GitLabPipelineStatus(StrEnum):
     SUCCESS = "success"
     FAILED = "failed"
     CANCELED = "canceled"
