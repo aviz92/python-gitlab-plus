@@ -33,7 +33,7 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/aviz92/python-gitlab-plus"
 Repository = "https://github.com/aviz92/python-gitlab-plus"
-Issues = "https://github.com/aviz92/v/issues"
+Issues = "https://github.com/aviz92/python-gitlab-plus/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
