@@ -65,14 +65,14 @@ class GitLabCiVariablesService:
     def create_variables(self, variable: dict[str, str]) -> None:
         self.project.variables.create(variable)
 
-    def delete_variables(self, variable: dict[str, str]) -> None:
-        self.project.variables.delete(variable["key"])
-
     def update_variables(self, variable: dict[str, str]) -> None:
         self.project.variables.update(variable["key"], variable)
 
+    def delete_variables(self, variable: dict[str, str]) -> None:
+        self.project.variables.delete(variable["key"])
+
     def create_or_update_variables(self, variable: dict[str, str]) -> None:
-        if self.project.variables.get(variable["key"], lazy=True).key:
+        if variable["key"] in [var.key for var in self.project.variables.list()]:
             self.logger.debug(f"⚠️ Variable '{variable["key"]}' already exists. It will be updated.")
             self.delete_variables(variable)
         self.create_variables(variable)
