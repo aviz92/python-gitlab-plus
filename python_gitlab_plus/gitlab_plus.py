@@ -164,8 +164,21 @@ class GitLabMergeRequestService:
         self.gitlab = gitlab_client
         self.project = project
 
-    def list(self, per_page: int = 20, iterator: bool = False, get_all: bool = False) -> list[ProjectMergeRequest]:
-        return self.project.mergerequests.list(per_page=per_page, iterator=iterator, get_all=get_all)
+    def list(
+        self,
+        per_page: int = 20,
+        iterator: bool = False,
+        get_all: bool = False,
+        stat: GitLabStatus | None = None,
+        target_branch: str | None = None,
+    ) -> list[ProjectMergeRequest]:
+        return self.project.mergerequests.list(
+            per_page=per_page,
+            iterator=iterator,
+            get_all=get_all,
+            state=stat.value if stat else None,
+            target_branch=target_branch,
+        )
 
     def get_info(self, mr_number: int) -> ProjectMergeRequest:
         return self.project.mergerequests.get(mr_number)
