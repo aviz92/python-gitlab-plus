@@ -14,7 +14,7 @@ from gitlab.v4.objects import (
     ProjectPipeline,
     ProjectTag,
 )
-from python_base_toolkit.base_structures.base_enum import BaseEnum, BaseStrEnum
+from python_base_toolkit.base_structures.base_enum import BaseStrEnum
 
 
 class GitLabStatus(BaseStrEnum):
@@ -24,7 +24,7 @@ class GitLabStatus(BaseStrEnum):
     LOCKED = "locked"
 
 
-class GitLabPipelineStatus(BaseEnum):
+class GitLabPipelineStatus(BaseStrEnum):
     SUCCESS = "success"
     FAILED = "failed"
     CANCELED = "canceled"
