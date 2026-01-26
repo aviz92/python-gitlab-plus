@@ -183,8 +183,15 @@ class GitLabMergeRequestService:
     def get_info(self, mr_number: int) -> ProjectMergeRequest:
         return self.project.mergerequests.get(mr_number)
 
-    def create(self, title: str, from_branch: str, target: str) -> ProjectMergeRequest:
-        mr = self.project.mergerequests.create({"source_branch": from_branch, "target_branch": target, "title": title})
+    def create(self, title: str, from_branch: str, target: str, description: str | None = None) -> ProjectMergeRequest:
+        mr = self.project.mergerequests.create(
+            {
+                "source_branch": from_branch, 
+                "target_branch": target, 
+                "title": title,
+                "description": description,
+            }
+        )
         self.logger.info(f"✅ Merge Request '{title}' created: !{mr.iid}")
         return mr
 
