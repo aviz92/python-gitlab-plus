@@ -16,6 +16,8 @@ from gitlab.v4.objects import (
 )
 from python_base_toolkit.base_structures.base_enum import BaseStrEnum
 
+from python_gitlab_plus.const import LOGGER_NAME
+
 
 class GitLabStatus(BaseStrEnum):
     OPEN = "opened"
@@ -33,7 +35,7 @@ class GitLabPipelineStatus(BaseStrEnum):
 
 class GitLabProjectService:
     def __init__(self, gitlab_client: gitlab.Gitlab, project: Project) -> None:
-        self.logger = get_logger(self.__class__.__name__)
+        self.logger = get_logger(LOGGER_NAME)
 
         self.gitlab = gitlab_client
         self.project = project
@@ -55,7 +57,7 @@ class GitLabProjectService:
 
 class GitLabCiVariablesService:
     def __init__(self, project: Project) -> None:
-        self.logger = get_logger(self.__class__.__name__)
+        self.logger = get_logger(LOGGER_NAME)
 
         self.project = project
 
@@ -80,7 +82,7 @@ class GitLabCiVariablesService:
 
 class GitLabPipelineService:
     def __init__(self, project: Project) -> None:
-        self.logger = get_logger(self.__class__.__name__)
+        self.logger = get_logger(LOGGER_NAME)
 
         self.project = project
 
@@ -104,7 +106,7 @@ class GitLabPipelineService:
 
 class GitLabBranchService:
     def __init__(self, project: Project) -> None:
-        self.logger = get_logger(self.__class__.__name__)
+        self.logger = get_logger(LOGGER_NAME)
 
         self.project = project
 
@@ -140,7 +142,7 @@ class GitLabBranchService:
 
 class GitLabTagService:
     def __init__(self, project: Project) -> None:
-        self.logger = get_logger(self.__class__.__name__)
+        self.logger = get_logger(LOGGER_NAME)
 
         self.project = project
 
@@ -159,7 +161,7 @@ class GitLabTagService:
 
 class GitLabMergeRequestService:
     def __init__(self, gitlab_client: gitlab.Gitlab, project: Project) -> None:
-        self.logger = get_logger(self.__class__.__name__)
+        self.logger = get_logger(LOGGER_NAME)
 
         self.gitlab = gitlab_client
         self.project = project
@@ -273,7 +275,7 @@ class GitLabMergeRequestService:
 
 class GitLabFileService:
     def __init__(self, gitlab_client: gitlab.Gitlab, project: Project) -> None:
-        self.logger = get_logger(self.__class__.__name__)
+        self.logger = get_logger(LOGGER_NAME)
 
         self.project = project
         self.gitlab = gitlab_client
@@ -312,7 +314,7 @@ class GitLabFileService:
 
 class GitLabClient:
     def __init__(self, gitlab_url: str, project_id: str, access_token: str | None = None) -> None:
-        self.logger = get_logger(self.__class__.__name__)
+        self.logger = get_logger(LOGGER_NAME)
         self.gitlab_url = gitlab_url
         self.gitlab_access_token = access_token or os.environ.get("GITLAB_ACCESS_TOKEN")
 
