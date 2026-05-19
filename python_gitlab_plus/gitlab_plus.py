@@ -16,7 +16,7 @@ from gitlab.v4.objects import (
 )
 from python_base_toolkit.base_structures.base_enum import BaseStrEnum
 
-from python_gitlab_plus.const import LOGGER_NAME
+from python_gitlab_plus.consts import LOGGER_NAME
 
 
 class GitLabStatus(BaseStrEnum):
